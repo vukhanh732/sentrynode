@@ -97,9 +97,22 @@ services:
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     networks: [sentrynode-net]
 
+  redis:
+    image: redis:7-alpine
+    container_name: sentrynode-redis
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    networks:
+      - sentrynode-net
+
+
 volumes:
   influxdb-data:
   elasticsearch-data:
+  redis-data:
 
 networks:
   sentrynode-net:

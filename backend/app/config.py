@@ -19,3 +19,6 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+# Compatibility alias for existing imports
+getsettings = get_settings
