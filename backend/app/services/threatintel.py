@@ -1,18 +1,20 @@
 import json
+import os
 from datetime import datetime
 from typing import Any, Dict, Optional
 
 import redis
 from app.config import get_settings
 
+
 class ThreatIntelService:
     def __init__(self):
         self.config = get_settings()
         self.ttl = int(getattr(self.config, "redisttlseconds", 3600))
         self.redis = redis.Redis(
-            host=getattr(self.config, "redishost", "localhost"),
-            port=int(getattr(self.config, "redisport", 6379)),
-            db=int(getattr(self.config, "redisdb", 0)),
+            host=os.getenv("REDISHOST", "localhost"),
+            port=int(os.getenv("REDISPORT", "6379")),
+            db=int(os.getenv("REDISDB", "0")),
             decode_responses=True,
         )
 
