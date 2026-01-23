@@ -83,6 +83,10 @@ services:
       ABUSEIPDBAPIKEY: ${ABUSEIPDBAPIKEY}
       DISCORDWEBHOOKURL: ${DISCORDWEBHOOKURL}
       JWTSECRET: ${JWTSECRET:-change-me}
+      REDISHOST: redis
+      REDISPORT: "6379"
+      REDISDB: "0"
+
     ports:
       - "8000:8000"
     depends_on:
