@@ -7,7 +7,7 @@ from app.services.detector import DetectionEngine
 router = APIRouter()
 
 # simple singleton for dev
-engine = DetectionEngine(threshold=5, window_minutes=10)
+engine = DetectionEngine(ssh_threshold=5, window_minutes=10, http_failure_threshold=20)
 
 class LogBatch(BaseModel):
     agentid: str

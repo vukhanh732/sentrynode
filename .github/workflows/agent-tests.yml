@@ -1,0 +1,68 @@
+name: Agent Tests & Build
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'agent/**'
+      - '.github/workflows/agent-tests.yml'
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    name: Test Agent
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        working-directory: ./agent
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-cov flake8
+
+      - name: Lint with flake8
+        working-directory: ./agent
+        run: |
+          flake8 collector --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 collector --count --exit-zero --max-complexity=10 --max-line-length=120 --statistics
+
+      - name: Run tests
+        working-directory: ./agent
+        run: pytest tests -v --cov=collector --cov-report=xml --cov-report=term -p no:warnings
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./agent/coverage.xml
+          flags: agent-unit
+          fail_ci_if_error: false
+
+  docker-build:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./agent
+          push: false
+          tags: sentrynode-agent:latest
