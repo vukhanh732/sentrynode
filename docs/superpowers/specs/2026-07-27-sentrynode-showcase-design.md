@@ -59,10 +59,12 @@ Decisions already made with the user:
    - Fix `ThreatIntelService`: wrap Redis calls in try/except so a
      missing/unreachable Redis degrades to "no cache" instead of raising;
      reuse a single Redis client instance; switch to `redis.asyncio` so
-     Redis I/O doesn't block the event loop.
-   - Make Redis fully optional at the config level — if unset, threat
-     intel lookups run without caching. This is what allows the deployed
-     demo to run as a single container with no external services.
+     Redis I/O doesn't block the event loop. There's no separate
+     enable/disable flag — the service always attempts to use Redis and
+     silently runs cache-free whenever it's unreachable, which is what
+     allows the deployed demo to run as a single container with no Redis
+     provisioned at all, without needing to remember to configure
+     anything.
    - Cap `POST /api/logs` batch size (e.g. max 500 events per request) to
      bound memory use from a single request.
    - Add lightweight per-IP rate limiting (`slowapi`) on `POST /api/logs`
