@@ -11,6 +11,14 @@ class Settings(BaseSettings):
     abuseipdbapikey: str = "change-me"
     discordwebhookurl: Optional[str] = None
 
+    redishost: str = "localhost"
+    redisport: int = 6379
+    redisdb: int = 0
+    redisttlseconds: int = 3600
+
+    demomode: bool = False
+    corsorigins: str = ""
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
