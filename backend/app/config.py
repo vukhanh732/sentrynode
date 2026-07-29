@@ -2,6 +2,7 @@ from functools import lru_cache
 from typing import Optional
 from pydantic_settings import BaseSettings
 
+
 class Settings(BaseSettings):
     appname: str = "SentryNode"
     environment: str = "development"
@@ -24,9 +25,11 @@ class Settings(BaseSettings):
         env_file_encoding = "utf-8"
         extra = "allow"
 
+
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
 
 # Compatibility alias for existing imports
 getsettings = get_settings

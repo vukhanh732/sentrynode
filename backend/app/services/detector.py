@@ -7,7 +7,7 @@ from urllib.parse import unquote_plus
 class DetectionEngine:
     """
     Advanced in-memory detection engine with threat scoring.
-    
+
     Rules:
       1. SSH brute force: >= threshold failed logins from same srcip in window
       2. SQL injection: suspicious patterns in nginx httppath
@@ -30,7 +30,7 @@ class DetectionEngine:
         "script>",
         "system(",
     ]
-    
+
     # Path traversal patterns
     PATH_TRAVERSAL_PATTERNS = [
         "../",
@@ -40,7 +40,7 @@ class DetectionEngine:
         "....//",
         "....\\\\",
     ]
-    
+
     # Suspicious paths
     SUSPICIOUS_PATHS = [
         "/admin",
@@ -61,7 +61,7 @@ class DetectionEngine:
     ) -> None:
         """
         Initialize detection engine.
-        
+
         Args:
             ssh_threshold: Failed SSH logins before alert
             window_minutes: Time window for stateful detection
@@ -70,7 +70,7 @@ class DetectionEngine:
         self.ssh_threshold = ssh_threshold
         self.http_failure_threshold = http_failure_threshold
         self.window = timedelta(minutes=window_minutes)
-        
+
         # State tracking
         self._failed_ssh_by_ip: Dict[str, Deque[datetime]] = defaultdict(deque)
         self._http_failures_by_ip: Dict[str, Deque[datetime]] = defaultdict(deque)
@@ -79,26 +79,26 @@ class DetectionEngine:
     def process_events(self, events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         Process events and generate alerts.
-        
+
         Args:
             events: List of log events
-            
+
         Returns:
             List of generated alerts
         """
         new_alerts: List[Dict[str, Any]] = []
-        
+
         for e in events:
             # SSH detection
             new_alerts.extend(self.detect_ssh_bruteforce(e))
-            
+
             # HTTP detection
             new_alerts.extend(self.detect_sql_injection(e))
             new_alerts.extend(self.detect_path_traversal(e))
             new_alerts.extend(self.detect_http_method_scanning(e))
             new_alerts.extend(self.detect_http_failure_brute_force(e))
             new_alerts.extend(self.detect_suspicious_paths(e))
-        
+
         return new_alerts
 
     def detect_ssh_bruteforce(self, e: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -313,10 +313,7 @@ class DetectionEngine:
 
     def get_alerts_by_severity(self, threat_level: str) -> List[Dict[str, Any]]:
         """Get alerts filtered by threat level."""
-        return [
-            a for a in self._alerts
-            if a.get("threat_level", "").upper() == threat_level.upper()
-        ]
+        return [a for a in self._alerts if a.get("threat_level", "").upper() == threat_level.upper()]
 
     def get_alerts_by_ip(self, ip: str) -> List[Dict[str, Any]]:
         """Get alerts for specific IP address."""
@@ -335,4 +332,3 @@ class DetectionEngine:
         ip_alerts = self.get_alerts_by_ip(ip)
         total_score = sum(a.get("threat_score", 0) for a in ip_alerts)
         return min(total_score, 100)  # Cap at 100
-
