@@ -326,6 +326,10 @@ class DetectionEngine:
         """Clear all stored alerts."""
         self._alerts.clear()
 
+    def add_alert(self, alert: Dict[str, Any]) -> None:
+        """Append a pre-built alert (used for demo-data seeding)."""
+        self._alerts.append(alert)
+
     def get_threat_score_for_ip(self, ip: str) -> int:
         """Calculate cumulative threat score for an IP."""
         ip_alerts = self.get_alerts_by_ip(ip)
