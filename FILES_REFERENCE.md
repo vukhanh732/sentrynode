@@ -43,18 +43,17 @@
 | `agent/tests/test_file_watcher.py` | 95 | 7 async test methods |
 | `agent/tests/test_agent_parsing.py` | 215 | 13 parser test methods |
 
-### Backend: Services (1 file)
+### Backend: Services (0 files)
 
-| File | Lines | Purpose |
-|------|-------|---------|
-| `backend/app/services/elasticsearch_service.py` | 300 | ES integration (index, search, aggregate) |
+`backend/app/services/elasticsearch_service.py` (300 lines, ES integration) was originally added here but removed in a later cleanup pass (commit `11c3770`) as dead code — it was never wired into the request path. See `README.md`'s Architecture section for the current state of Elasticsearch (provisioned via docker-compose, not called by the backend).
 
-### Backend: Tests (2 files)
+### Backend: Tests (1 file)
 
 | File | Lines | Purpose |
 |------|-------|---------|
 | `backend/tests/unit/test_advanced_detector.py` | 380 | 35+ detection rules tests |
-| `backend/tests/unit/test_elasticsearch_service.py` | 240 | 13 ES integration tests |
+
+`backend/tests/unit/test_elasticsearch_service.py` (240 lines, 13 tests) was removed along with `elasticsearch_service.py`.
 
 ### CI/CD: Workflows (2 files)
 
@@ -102,9 +101,8 @@ clear_alerts()                    # NEW
 ### Backend: Dependencies
 
 **File**: `backend/requirements.txt`
-- **Changes**: +4 packages
+- **Changes**: +3 packages (a 4th, `elasticsearch==8.11.0`, was added then removed once the unused Elasticsearch service was deleted)
 - **Added**:
-  - `elasticsearch==8.11.0`
   - `black==23.12.0`
   - `flake8==6.1.0`
   - `mypy==1.7.0`
@@ -147,13 +145,13 @@ agent/
 backend/
 ├── app/
 │   └── services/
-│       ├── detector.py                    # Enhanced (6 rules)
-│       └── elasticsearch_service.py       # New (full ES integration)
+│       └── detector.py                    # Enhanced (6 rules)
+│       # elasticsearch_service.py was added then removed as dead code (unused)
 ├── tests/
 │   └── unit/
-│       ├── test_advanced_detector.py     # New (35+ tests)
-│       └── test_elasticsearch_service.py # New (13 tests)
-└── requirements.txt                      # Updated (+4 packages)
+│       └── test_advanced_detector.py     # New (35+ tests)
+│       # test_elasticsearch_service.py removed along with the service
+└── requirements.txt                      # Updated (+3 packages)
 ```
 
 ### CI/CD
@@ -174,8 +172,7 @@ backend/
 - `pydantic-settings==2.1.0` - Configuration management
 - `python-json-logger==2.0.7` - Structured logging
 
-### Backend New Dependencies (4)
-- `elasticsearch==8.11.0` - ES client library
+### Backend New Dependencies (3)
 - `black==23.12.0` - Code formatter (dev)
 - `flake8==6.1.0` - Linter (dev)
 - `mypy==1.7.0` - Type checker (dev)
@@ -232,21 +229,8 @@ File: backend/tests/unit/test_advanced_detector.py
   • ... and more
 ```
 
-### Backend Tests (Elasticsearch)
-```
-File: backend/tests/unit/test_elasticsearch_service.py
-- Lines: 240
-- Test classes: 1
-- Test methods: 13
-  • test_elasticsearch_connect_success
-  • test_elasticsearch_connect_failure
-  • test_get_index_name_default
-  • test_index_log_event_success
-  • test_bulk_index_success
-  • test_search_logs_success
-  • test_get_alerts_for_ip
-  • ... and more
-```
+### Backend Tests (Elasticsearch) — removed
+`backend/tests/unit/test_elasticsearch_service.py` (240 lines, 13 test methods) was removed along with `elasticsearch_service.py` as part of the dead-code cleanup (commit `11c3770`).
 
 ---
 
@@ -261,8 +245,7 @@ Agent Config:             30 lines (requirements.txt + Dockerfile)
 Agent Subtotal:        1,090 lines
 
 Backend Detection:       150 lines (enhanced detector.py)
-Backend Elasticsearch:   300 lines (new service)
-Backend Tests:           620 lines (2 test files)
+Backend Tests:           380 lines (1 test file)
 Backend Config:            4 lines (requirements.txt updates)
 ────────────────────────────────
 Backend Subtotal:      1,074 lines
@@ -276,7 +259,7 @@ GRAND TOTAL:           3,254 lines of code + documentation
 ```
 
 ### Complexity Analysis
-- **Async Operations**: 40+ async functions (agent file watching, HTTP shipping, ES queries)
+- **Async Operations**: 40+ async functions (agent file watching, HTTP shipping)
 - **Regular Expressions**: 10+ patterns (SSH, Nginx, Docker, SQL injection, path traversal)
 - **Test Coverage**: 70+ test methods with fixtures and mocking
 - **Error Handling**: Exponential backoff, graceful degradation, fallback responses
@@ -291,7 +274,6 @@ When reviewing implementation:
 - [ ] All 9 agent files exist and are properly organized
 - [ ] Agent tests cover SSH, Nginx, Docker log parsing
 - [ ] Detection engine has 6 rules with threat scoring
-- [ ] Elasticsearch service has full CRUD + search operations
 - [ ] CI/CD workflows trigger on push and PRs
 - [ ] All files have proper docstrings and comments
 - [ ] Requirements are pinned to specific versions
@@ -312,7 +294,6 @@ When reviewing implementation:
 | How logs are shipped | `agent/collector/shipper.py` |
 | Log parsing logic | `agent/collector/main.py` |
 | Detection rules | `backend/app/services/detector.py` |
-| Elasticsearch API | `backend/app/services/elasticsearch_service.py` |
 | How to test agent | `agent/tests/test_agent_parsing.py` |
 | How to test detection | `backend/tests/unit/test_advanced_detector.py` |
 | CI/CD setup | `.github/workflows/backend-tests.yml` |

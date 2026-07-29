@@ -77,37 +77,22 @@ GitHub Actions automation workflows:
 
 ---
 
-#### **Bonus: Elasticsearch Integration** ✅ COMPLETE
-Full log search and storage system:
-
-**New file:**
-- `backend/app/services/elasticsearch_service.py` (300+ lines)
-
-**Capabilities:**
-- Async connection management
-- Automatic index templates
-- Daily index rotation
-- Bulk indexing (10x throughput)
-- Full-text search API
-- IP-based alert queries
-- Threat timeline aggregation
-- 13+ test methods
+#### **Bonus: Elasticsearch Integration** — REMOVED (dead code cleanup)
+This was originally built as a full log search and storage system (`backend/app/services/elasticsearch_service.py`, 300+ lines, with 13+ test methods) but was never wired into the request path — nothing in `app/` called it. It was deleted in a later cleanup pass (commit `11c3770`) to avoid shipping unused code. Elasticsearch remains provisioned in `docker-compose.yml` for local full-stack development and is on the Roadmap for future integration; see `README.md`'s Architecture section for the current state.
 
 ---
 
 ### 📊 Testing Validation
 
-**Total Test Files: 5**
+**Total Test Files: 4** (was 5; `test_elasticsearch_service.py` removed along with the service — see Bonus section above)
 - `agent/tests/test_file_watcher.py` - 7 test methods
 - `agent/tests/test_agent_parsing.py` - 13 test methods  
 - `backend/tests/unit/test_advanced_detector.py` - 35+ test methods
-- `backend/tests/unit/test_elasticsearch_service.py` - 13 test methods
 - `agent/tests/conftest.py` - Pytest configuration
 
 **Test Coverage:**
 - **Agent**: 20+ methods covering file watching, parsing (SSH/Nginx/Docker), error handling
 - **Detection**: 50+ methods covering all 6 rules, filtering, scoring
-- **Storage**: 13+ methods covering indexing, search, aggregation
 
 **All tests use:**
 - pytest with asyncio support
@@ -134,8 +119,7 @@ bash run_tests.sh                   # Comprehensive test validation
 docker compose up -d --build        # Full infrastructure
 
 # 4. Verify deployment
-curl http://localhost:8000/health   # Should return {"status":"ok"}
-curl http://localhost:9200/_cat/indices  # List Elasticsearch indices
+curl http://localhost:8000/health   # Should return {"status":"ok","redis":"ok"}
 
 # 5. View logs
 docker compose logs -f backend      # Real-time backend logs
@@ -169,13 +153,13 @@ sentrynode/
 ├── backend/
 │   ├── app/
 │   │   └── services/
-│   │       ├── detector.py           ← Enhanced (250+ lines, 6 rules)
-│   │       └── elasticsearch_service.py ← New (300+ lines)
+│   │       └── detector.py           ← Enhanced (250+ lines, 6 rules)
+│   │       # elasticsearch_service.py was added here, then removed as dead code (unused, see Bonus section)
 │   ├── tests/
 │   │   └── unit/
-│   │       ├── test_advanced_detector.py ← 35+ tests
-│   │       └── test_elasticsearch_service.py ← 13 tests
-│   └── requirements.txt               ← Updated (14 packages)
+│   │       └── test_advanced_detector.py ← 35+ tests
+│   │       # test_elasticsearch_service.py removed along with the service
+│   └── requirements.txt               ← Updated
 │
 ├── .github/
 │   └── workflows/
@@ -205,13 +189,8 @@ sentrynode/
 - Generates alerts with severity levels
 - Supports filtering and querying
 
-**Elasticsearch** (Storage & Search):
-- Stores all logs with full-text indexing
-- Stores all alerts for compliance
-- Enables historical investigation
-- Supports IP-based queries
-- Provides timeline aggregation
-- Ready for Grafana visualization
+**Elasticsearch** (Storage & Search) — removed:
+- Was intended for full-text log/alert indexing, IP-based queries, and timeline aggregation, but the integration was never wired into the request path and was deleted as dead code. Provisioned in `docker-compose.yml` for local dev; remains on the Roadmap.
 
 **CI/CD** (Quality Gates):
 - Runs tests automatically on every commit
@@ -229,7 +208,7 @@ sentrynode/
 - [x] **HTTP shipping** with exponential backoff
 - [x] **6 detection rules** with threat scoring
 - [x] **Stateful tracking** (time-windowed attacks)
-- [x] **Elasticsearch integration** (full-text search)
+- [ ] ~~Elasticsearch integration (full-text search)~~ — removed as dead code (never wired in); on Roadmap
 - [x] **Comprehensive testing** (70+ test methods)
 - [x] **GitHub Actions CI/CD** (automated quality gates)
 - [x] **Production Docker images** (non-root, multi-stage)

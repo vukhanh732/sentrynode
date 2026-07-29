@@ -68,7 +68,6 @@ cd backend
 
 # Check files
 run_test "detector.py updated" "grep -q 'detect_path_traversal' app/services/detector.py"
-run_test "elasticsearch_service.py exists" "test -f app/services/elasticsearch_service.py"
 
 # Install and test
 echo ""
@@ -76,7 +75,6 @@ echo "Installing backend dependencies..."
 pip install -q -r requirements.txt 2>/dev/null || true
 
 run_test "Detector tests run" "pytest tests/unit/test_advanced_detector.py -q"
-run_test "Elasticsearch tests run" "pytest tests/unit/test_elasticsearch_service.py -q"
 
 # Check detector methods
 run_test "SSH brute force detection" "grep -q 'detect_ssh_bruteforce' app/services/detector.py"
@@ -104,19 +102,6 @@ run_test "Agent workflow exists" "test -f .github/workflows/agent-tests.yml"
 run_test "Pytest in workflow" "grep -q 'pytest' .github/workflows/backend-tests.yml"
 run_test "Flake8 in workflow" "grep -q 'flake8' .github/workflows/backend-tests.yml"
 run_test "Black check in workflow" "grep -q 'black' .github/workflows/backend-tests.yml"
-
-echo ""
-
-# =======================
-# Bonus: Elasticsearch
-# =======================
-echo -e "${YELLOW}[BONUS] Elasticsearch Integration${NC}"
-echo "────────────────────────────────────────────────────"
-
-run_test "ES service methods" "grep -q 'index_log_event' backend/app/services/elasticsearch_service.py"
-run_test "ES bulk indexing" "grep -q 'bulk_index' backend/app/services/elasticsearch_service.py"
-run_test "ES search capability" "grep -q 'search_logs' backend/app/services/elasticsearch_service.py"
-run_test "ES alert queries" "grep -q 'get_alerts_for_ip' backend/app/services/elasticsearch_service.py"
 
 echo ""
 

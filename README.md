@@ -81,7 +81,7 @@ A lightweight, home-built Security Information and Event Management (SIEM) syste
    ```bash
    curl http://localhost:8000/health
    ```
-   Expected: `{"status":"ok"}`
+   Expected: `{"status":"ok","redis":"ok"}` (the `redis` field reports `"unavailable"` if the cache can't be reached, but the endpoint still returns 200)
 
 ### Access Services
 
@@ -101,7 +101,13 @@ A lightweight, home-built Security Information and Event Management (SIEM) syste
 ```bash
 GET /health
 ```
-Returns API status.
+Returns API status. `redis` reports `"ok"` or `"unavailable"` depending on whether the cache backend can be reached (the endpoint itself still returns 200 either way):
+```json
+{
+  "status": "ok",
+  "redis": "ok"
+}
+```
 
 ### Log Ingestion
 ```bash
@@ -128,6 +134,8 @@ Content-Type: application/json
   ]
 }
 ```
+
+Rate-limited to **20 requests/minute** per client (returns `429` when exceeded). Batches are capped at **500 events** per request (returns `413` if exceeded).
 
 **Response**: 
 ```json
@@ -174,6 +182,8 @@ GET /api/alerts
 GET /api/threat-intel/{ip}
 ```
 
+Rate-limited to **30 requests/minute** per client (returns `429` when exceeded). The `{ip}` path parameter is validated as a real IP address; an invalid value returns `400`.
+
 **Response**:
 ```json
 {
@@ -189,20 +199,24 @@ GET /api/threat-intel/{ip}
 
 ## Configuration
 
-Environment variables (see `.env.example`):
+Environment variables read by the backend (`backend/app/config.py`, see `.env.example`):
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
+| `APPNAME` | SentryNode | Application name (used in logs/metadata) |
+| `ENVIRONMENT` | development | Deployment environment label |
 | `LOGLEVEL` | INFO | Logging verbosity |
-| `RABBITMQUSER` | guest | RabbitMQ authentication |
-| `RABBITMQPASSWORD` | guest | RabbitMQ authentication |
-| `ABUSEIPDBAPIKEY` | change-me | AbuseIPDB API key for IP reputation |
-| `INFLUXDBUSER` | admin | InfluxDB credentials |
-| `INFLUXDBPASSWORD` | password123 | InfluxDB credentials |
-| `GRAFANAPASSWORD` | admin | Grafana admin password |
-| `DISCORDWEBHOOKURL` | (optional) | Discord webhook for alert notifications |
 | `JWTSECRET` | change-me | JWT secret for future auth features |
-| `REDISTTLSECONDS` | 3600 | Threat intel cache TTL |
+| `ABUSEIPDBAPIKEY` | change-me | AbuseIPDB API key for IP reputation lookups |
+| `DISCORDWEBHOOKURL` | (unset) | Discord webhook for alert notifications (optional) |
+| `REDISHOST` | localhost | Redis host for threat-intel response caching |
+| `REDISPORT` | 6379 | Redis port |
+| `REDISDB` | 0 | Redis logical database index |
+| `REDISTTLSECONDS` | 3600 | Threat intel cache TTL, in seconds |
+| `DEMOMODE` | false | Enables demo/showcase behavior (e.g. relaxed auth for the public demo deployment) |
+| `CORSORIGINS` | "" (empty) | Comma-separated list of allowed CORS origins |
+
+**docker-compose infra (not read by the backend):** `RABBITMQUSER`/`RABBITMQPASSWORD`, `INFLUXDBUSER`/`INFLUXDBPASSWORD`, `GRAFANAPASSWORD` configure the RabbitMQ, InfluxDB, and Grafana containers in `docker-compose.yml` for local full-stack development. They have no corresponding `Settings` field because the backend doesn't talk to those services yet (see Architecture above and Roadmap below).
 
 ## Testing
 
@@ -294,10 +308,6 @@ sentrynode/
 docker compose logs backend
 docker compose ps
 ```
-
-**Elasticsearch connection error**
-- Verify `ELASTICSEARCHHOST=elasticsearch` in backend container environment
-- Check Elasticsearch is healthy: `curl http://localhost:9200`
 
 **Redis cache not working**
 - Verify Redis container is running: `docker compose ps`

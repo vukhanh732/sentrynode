@@ -13,7 +13,7 @@ This document summarizes the implementation of SentryNode roadmap items based on
 - ✅ **Phase 2**: Full-featured Log Collector Agent
 - ✅ **Phase 3**: Advanced threat detection with scoring
 - ✅ **Phase 4**: CI/CD automation with GitHub Actions
-- ✅ **Bonus**: Elasticsearch integration for log storage
+- ⚠️ **Bonus**: Elasticsearch integration for log storage — later removed as dead code (never wired into the request path; see "Elasticsearch Integration" section below)
 
 ---
 
@@ -130,28 +130,12 @@ This document summarizes the implementation of SentryNode roadmap items based on
 
 ---
 
-### Elasticsearch Integration
+### Elasticsearch Integration — REMOVED (dead code cleanup)
 
-**New File**:
-- `backend/app/services/elasticsearch_service.py` - Full ES integration
+**Originally added, later deleted**:
+- `backend/app/services/elasticsearch_service.py` - Full ES integration (connection management, index templates, daily index rotation, bulk indexing, full-text search, IP-based alert queries, threat timeline aggregation)
 
-**Capabilities**:
-- Async connection management
-- Automatic index template creation
-- Daily index rotation (`sentrynode-logs-YYYY.MM.DD`)
-- Bulk indexing for high throughput
-- Full-text search with filters
-- Alert query by IP
-- Threat timeline aggregation
-
-**Methods**:
-- `connect()` - Establish connection
-- `index_log_event(event)` - Store single log
-- `index_alert(alert)` - Store alert
-- `bulk_index(events)` - Efficient bulk loading
-- `search_logs(query, srcip, hostname)` - FTS query
-- `get_alerts_for_ip(ip)` - IP-based alert lookup
-- `get_threat_timeline(hours)` - Time-series analysis
+This service was never called from anywhere in `app/` (no route or other service imported it), so it was removed in a later cleanup pass (commit `11c3770`) along with its test file to avoid shipping unused code. Elasticsearch remains provisioned in `docker-compose.yml` for local full-stack development and is tracked on the Roadmap for future integration — see `README.md`'s Architecture section for the current, accurate picture.
 
 ---
 
@@ -186,20 +170,12 @@ This document summarizes the implementation of SentryNode roadmap items based on
 - Alert filtering and management
 - Threat score calculation
 
-**File**: `backend/tests/unit/test_elasticsearch_service.py`
-- Connection success/failure
-- Index naming (with/without custom timestamps)
-- Event indexing
-- Bulk operations
-- Full-text search
-- IP-based queries
-- Timeline aggregation
-- Disconnection
+`backend/tests/unit/test_elasticsearch_service.py` was removed along with `elasticsearch_service.py` (see Elasticsearch Integration section above).
 
 ### Total Test Coverage
 
 - **Agent**: 7 test files/classes with 20+ test methods
-- **Backend**: 50+ test methods across detector and Elasticsearch
+- **Backend**: 35+ test methods across the detection engine
 - **Code coverage**: Target >80% for merge
 
 ---
@@ -246,7 +222,6 @@ docker compose up -d --build
 
 # Verify services
 curl http://localhost:8000/health
-curl http://localhost:9200/_cluster/health
 curl http://localhost:3000  # Grafana
 
 # Stop
@@ -283,17 +258,18 @@ docker compose down
                    │
     ┌──────────────┼──────────────┐
     ▼              ▼              ▼
-  Redis       Elasticsearch   InfluxDB
+  Redis       Elasticsearch*  InfluxDB*
  (Cache)      (Log Storage)   (Metrics)
     │              │             │
     └──────────────┴─────────────┘
               │
               ▼
     ┌─────────────────────┐
-    │ Grafana Dashboard   │
+    │ Grafana Dashboard*  │
     │ (Visualization)     │
     └─────────────────────┘
 ```
+\* Provisioned in `docker-compose.yml` for local dev but not yet wired into the backend request path — only Redis (cache) is actively used today. See `README.md`'s Architecture section.
 
 ---
 
@@ -314,11 +290,8 @@ docker compose down
 - Local file position tracking
 
 ### Storage
-- Full-text search capability
-- Time-series metrics ready
-- Alert archival and querying
-- Historical correlation
-- Compliance-ready audit trail
+- Redis-backed threat-intel response caching (actively used)
+- Elasticsearch/InfluxDB/Grafana provisioned for local dev but not yet wired in (see Roadmap)
 
 ### CI/CD
 - Automated testing on every commit
@@ -378,17 +351,19 @@ docker compose down
 - `agent/requirements.txt`
 - `agent/Dockerfile`
 
-**Backend** (3 modified/new):
+**Backend** (2 modified/new):
 - `backend/app/services/detector.py` (enhanced)
-- `backend/app/services/elasticsearch_service.py` (new)
 - `backend/requirements.txt` (updated)
+
+`backend/app/services/elasticsearch_service.py` was added here, then removed as dead code (see Elasticsearch Integration section above).
 
 **Testing** (4 files):
 - `agent/tests/test_file_watcher.py`
 - `agent/tests/test_agent_parsing.py`
 - `agent/tests/conftest.py`
 - `backend/tests/unit/test_advanced_detector.py`
-- `backend/tests/unit/test_elasticsearch_service.py`
+
+`backend/tests/unit/test_elasticsearch_service.py` was removed along with the service it tested.
 
 **CI/CD** (2 files):
 - `.github/workflows/backend-tests.yml`
@@ -411,7 +386,6 @@ cd agent && pytest tests/ -v --tb=short
 
 # 3. Run backend tests
 cd ../backend && pytest tests/unit/test_advanced_detector.py -v
-pytest tests/unit/test_elasticsearch_service.py -v
 
 # 4. Check dependencies
 pip list | grep -E "pytest|black|flake8"
@@ -420,7 +394,6 @@ pip list | grep -E "pytest|black|flake8"
 docker compose up -d
 sleep 30
 curl http://localhost:8000/health
-curl http://localhost:9200/_cat/indices
 
 # 6. Code quality check
 flake8 agent/collector
