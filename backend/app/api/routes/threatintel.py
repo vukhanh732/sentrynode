@@ -1,14 +1,16 @@
 import ipaddress
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
+from app.limiter import limiter
 from app.services.threatintel import ThreatIntelService
 
 router = APIRouter()
 
 
 @router.get("/threat-intel/{ip}")
-async def get_threat_intel(ip: str):
+@limiter.limit("30/minute")
+async def get_threat_intel(request: Request, ip: str):
     try:
         ipaddress.ip_address(ip)
     except ValueError:

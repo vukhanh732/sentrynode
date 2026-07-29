@@ -1,8 +1,9 @@
 from typing import Any, Dict, List
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
+from app.limiter import limiter
 from app.services.detector import DetectionEngine
 
 router = APIRouter()
@@ -20,7 +21,8 @@ class LogBatch(BaseModel):
 
 
 @router.post("/logs")
-async def ingest_logs(payload: LogBatch):
+@limiter.limit("20/minute")
+async def ingest_logs(request: Request, payload: LogBatch):
     if len(payload.events) > MAX_BATCH_EVENTS:
         raise HTTPException(
             status_code=413,
