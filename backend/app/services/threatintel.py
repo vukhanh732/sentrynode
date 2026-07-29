@@ -1,43 +1,58 @@
 import json
-import os
 from datetime import datetime
+from functools import lru_cache
 from typing import Any, Dict, Optional
 
 import httpx
-import redis
+import redis.asyncio as redis
+from redis.exceptions import RedisError
+
 from app.config import get_settings
 
 
+@lru_cache
+def get_redis_client() -> "redis.Redis":
+    """Single shared Redis client, reused across requests instead of
+    opening a new connection per call."""
+    settings = get_settings()
+    return redis.Redis(
+        host=settings.redishost,
+        port=settings.redisport,
+        db=settings.redisdb,
+        decode_responses=True,
+    )
+
+
 class ThreatIntelService:
-    def __init__(self):
+    def __init__(self) -> None:
         self.config = get_settings()
-        self.api_key = os.getenv("ABUSEIPDBAPIKEY", "")
-        self.ttl = int(getattr(self.config, "redisttlseconds", 3600))
-        self.redis = redis.Redis(
-            host=os.getenv("REDISHOST", "localhost"),
-            port=int(os.getenv("REDISPORT", "6379")),
-            db=int(os.getenv("REDISDB", "0")),
-            decode_responses=True,
-        )
+        self.api_key = self.config.abuseipdbapikey
+        self.ttl = self.config.redisttlseconds
+        self.redis = get_redis_client()
 
     def _key(self, ip: str) -> str:
         return f"ti:{ip}"
 
-    def _get_cache(self, ip: str) -> Optional[Dict[str, Any]]:
-        raw = self.redis.get(self._key(ip))
+    async def _get_cache(self, ip: str) -> Optional[Dict[str, Any]]:
+        try:
+            raw = await self.redis.get(self._key(ip))
+        except RedisError:
+            return None
         if not raw:
             return None
         data = json.loads(raw)
         data["cached"] = True
         return data
 
-    def _set_cache(self, ip: str, data: Dict[str, Any]) -> None:
-        self.redis.setex(self._key(ip), self.ttl, json.dumps(data))
+    async def _set_cache(self, ip: str, data: Dict[str, Any]) -> None:
+        try:
+            await self.redis.setex(self._key(ip), self.ttl, json.dumps(data))
+        except RedisError:
+            pass
 
     async def _fetch_abuseipdb(self, ip: str) -> Dict[str, Any]:
         """Call AbuseIPDB API v2 check endpoint."""
         if not self.api_key or self.api_key == "change-me":
-            # Return safe default when API key not configured
             return {
                 "ip": ip,
                 "abuseConfidenceScore": 0,
@@ -64,13 +79,12 @@ class ThreatIntelService:
                 "ip": ip,
                 "abuseConfidenceScore": score,
                 "totalReports": data.get("totalReports", 0),
-                "isMalicious": score >= 50,  # Threshold: 50+
+                "isMalicious": score >= 50,
                 "source": "abuseipdb",
                 "timestamp": datetime.utcnow().isoformat() + "Z",
             }
 
         except (httpx.HTTPError, KeyError, ValueError) as e:
-            # Fallback on API errors (rate limit, network, parse errors)
             return {
                 "ip": ip,
                 "abuseConfidenceScore": 0,
@@ -81,12 +95,12 @@ class ThreatIntelService:
             }
 
     async def check_ip(self, ip: str) -> Dict[str, Any]:
-        cached = self._get_cache(ip)
+        cached = await self._get_cache(ip)
         if cached:
             return cached
 
         data = await self._fetch_abuseipdb(ip)
         data["cached"] = False
 
-        self._set_cache(ip, data)
+        await self._set_cache(ip, data)
         return data
