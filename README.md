@@ -24,6 +24,8 @@ A lightweight, home-built Security Information and Event Management (SIEM) syste
 
 ## Architecture
 
+**Implemented and running today:**
+
 ```
 ┌─────────────┐
 │   Agents    │ (SSH logs, nginx logs, etc.)
@@ -33,30 +35,28 @@ A lightweight, home-built Security Information and Event Management (SIEM) syste
 ┌─────────────────────────────────────┐
 │    FastAPI Backend                  │
 │  ┌──────────────────────────────┐   │
-│  │  Detection Engine            │   │
-│  │  - SSH Brute Force Rules     │   │
-│  │  - SQL Injection Patterns    │   │
+│  │  Detection Engine (in-memory)│   │
+│  │  - SSH Brute Force           │   │
+│  │  - SQL Injection             │   │
+│  │  - Path Traversal            │   │
+│  │  - HTTP Method Scanning      │   │
+│  │  - HTTP Auth Brute Force     │   │
+│  │  - Suspicious Path Access    │   │
 │  └──────────────────────────────┘   │
 │  ┌──────────────────────────────┐   │
 │  │  Threat Intel Service        │   │
 │  │  - AbuseIPDB Integration     │   │
-│  │  - Redis Caching             │   │
+│  │  - Redis Caching (optional,  │   │
+│  │    degrades gracefully)      │   │
 │  └──────────────────────────────┘   │
-└─────────────┬───────────────────────┘
-              │
-    ┌─────────┴─────────┬──────────┬──────────┐
-    ▼                   ▼          ▼          ▼
-┌────────────┐  ┌────────────┐  ┌──────────┐  ┌────────┐
-│Elasticsearch│ │ InfluxDB   │  │ RabbitMQ │  │ Redis  │
-│  (Logs)    │  │ (Metrics)  │  │(Queuing) │  │(Cache) │
-└────────────┘  └────────────┘  └──────────┘  └────────┘
-                      │
-                      ▼
-                ┌────────────┐
-                │  Grafana   │
-                │(Dashboards)│
-                └────────────┘
+└──────────────┬───────────────────────┘
+               ▼
+            ┌───────┐
+            │ Redis │ (cache only)
+            └───────┘
 ```
+
+**Provisioned in `docker-compose.yml` for local full-stack development, not yet wired into the request path:** RabbitMQ, InfluxDB, Elasticsearch, Grafana. These represent the intended direction (queued ingestion, long-term log storage, metrics dashboards) but the backend code doesn't call them yet — see the Roadmap section below. Being upfront about this split is deliberate: it's a mid-flight infrastructure project, not a finished platform.
 
 ## Quick Start
 
@@ -271,11 +271,8 @@ sentrynode/
 - **Testing**: Pytest + pytest-asyncio
 - **Logging**: python-json-logger
 - **Infrastructure**: Docker Compose
-  - RabbitMQ 3.12 (message queue)
-  - Elasticsearch 8.11 (log indexing)
-  - InfluxDB 2.7 (time-series metrics)
-  - Grafana 10.2 (visualization)
-  - Redis (caching)
+  - Redis (caching — actively used)
+  - RabbitMQ 3.12, Elasticsearch 8.11, InfluxDB 2.7, Grafana 10.2 — provisioned for local dev, not yet wired into the backend (see Roadmap)
 
 ## Development Roadmap (Phase 2+)
 
