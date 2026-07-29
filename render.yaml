@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: sentrynode-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: DEMOMODE
+        value: "true"
+      - key: CORSORIGINS
+        value: ""
+      - key: ABUSEIPDBAPIKEY
+        sync: false
+      - key: JWTSECRET
+        generateValue: true
