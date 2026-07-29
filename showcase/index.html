@@ -68,7 +68,7 @@
     <h1>SentryNode</h1>
     <p class="tagline">A home-built SIEM: log ingestion, real-time threat detection, and threat-intel enrichment — built solo from scratch.</p>
     <div class="cta">
-      <a class="btn primary" href="RENDER_URL_HERE/docs">Try it live (Swagger UI)</a>
+      <a class="btn primary" href="https://sentrynode-backend.onrender.com/docs">Try it live (Swagger UI)</a>
       <a class="btn secondary" href="https://github.com/vukhanh732/sentrynode">View source on GitHub</a>
     </div>
   </header>
@@ -94,7 +94,7 @@
   <section>
     <h2>See it work</h2>
     <p>Post a batch of log events and watch an alert come back:</p>
-    <pre><code>curl -X POST RENDER_URL_HERE/api/logs \
+    <pre><code>curl -X POST https://sentrynode-backend.onrender.com/api/logs \
   -H "Content-Type: application/json" \
   -d '{
     "agentid": "demo-agent",
@@ -108,7 +108,7 @@
     ]
   }'
 
-curl RENDER_URL_HERE/api/alerts
+curl https://sentrynode-backend.onrender.com/api/alerts
 # → includes a freshly generated "ssh_bruteforce" alert for 203.0.113.9</code></pre>
     <p style="color:var(--muted); font-size:0.85rem;">Running on a free-tier host: the first request after ~15 minutes idle can take 30-60 seconds to wake up.</p>
   </section>

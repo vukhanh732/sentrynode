@@ -2,7 +2,14 @@
 
 A lightweight, home-built Security Information and Event Management (SIEM) system for detecting, alerting, and analyzing security threats. SentryNode ingests logs from distributed agents, applies detection rules, correlates threat intelligence, and visualizes security metrics.
 
-**Status**: Phase 1 - Local development with core detection and threat intel features
+**Status**: Phase 1 - Core detection and threat intel features, hardened and deployed as a live demo
+
+## Live Demo
+
+- **Try it live**: [sentrynode-backend.onrender.com/docs](https://sentrynode-backend.onrender.com/docs) (Swagger UI, fully interactive)
+- **Alerts feed**: [sentrynode-backend.onrender.com/api/alerts](https://sentrynode-backend.onrender.com/api/alerts)
+
+Running on Render's free tier: if it's been idle for ~15 minutes, the first request takes 30-60 seconds to wake up. Subsequent requests are fast. The demo runs in `DEMOMODE`, seeded with a few sample alerts, and has no persistent database — state resets on redeploy.
 
 ## Features
 
