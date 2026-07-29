@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SentryNode — Home-built SIEM</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #0b0f14;
+    --panel: #121821;
+    --border: #232c38;
+    --text: #e6edf3;
+    --muted: #8b98a5;
+    --accent: #4fd1c5;
+    --danger: #f56565;
+    --warn: #ecc94b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.6;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 3rem 1.5rem 5rem; }
+  header { text-align: center; margin-bottom: 3rem; }
+  h1 { font-size: 2.2rem; margin: 0 0 0.5rem; }
+  .tagline { color: var(--muted); font-size: 1.1rem; margin: 0 0 2rem; }
+  .cta { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+  .btn {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 600;
+    border: 1px solid var(--border);
+  }
+  .btn.primary { background: var(--accent); color: #06201d; border-color: var(--accent); }
+  .btn.secondary { color: var(--text); }
+  section { margin-bottom: 3rem; }
+  h2 { font-size: 1.4rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; }
+  .card h3 { margin: 0 0 0.5rem; font-size: 1rem; }
+  .card p { margin: 0; color: var(--muted); font-size: 0.92rem; }
+  .badge { display: inline-block; font-size: 0.72rem; padding: 0.15rem 0.5rem; border-radius: 999px; margin-left: 0.4rem; vertical-align: middle; }
+  .badge.live { background: rgba(79,209,197,0.15); color: var(--accent); }
+  .badge.roadmap { background: rgba(236,201,75,0.15); color: var(--warn); }
+  pre {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem;
+    overflow-x: auto;
+    font-size: 0.85rem;
+  }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  footer { text-align: center; color: var(--muted); font-size: 0.85rem; }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>SentryNode</h1>
+    <p class="tagline">A home-built SIEM: log ingestion, real-time threat detection, and threat-intel enrichment — built solo from scratch.</p>
+    <div class="cta">
+      <a class="btn primary" href="RENDER_URL_HERE/docs">Try it live (Swagger UI)</a>
+      <a class="btn secondary" href="https://github.com/vukhanh732/sentrynode">View source on GitHub</a>
+    </div>
+  </header>
+
+  <section>
+    <h2>What it does</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>Detects attacks in real time <span class="badge live">live</span></h3>
+        <p>SSH brute force, SQL injection, path traversal, HTTP method scanning, auth brute force, and suspicious path access — all detected from streamed log events.</p>
+      </div>
+      <div class="card">
+        <h3>Enriches with threat intel <span class="badge live">live</span></h3>
+        <p>Looks up IP reputation via AbuseIPDB, with Redis-backed caching that degrades gracefully if the cache is unavailable.</p>
+      </div>
+      <div class="card">
+        <h3>Full SIEM pipeline <span class="badge roadmap">roadmap</span></h3>
+        <p>Docker Compose also provisions Elasticsearch, InfluxDB, RabbitMQ, and Grafana for long-term storage, metrics, and dashboards — designed for, not yet wired into, the live request path.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>See it work</h2>
+    <p>Post a batch of log events and watch an alert come back:</p>
+    <pre><code>curl -X POST RENDER_URL_HERE/api/logs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agentid": "demo-agent",
+    "hostname": "web-01",
+    "events": [
+      {"source": "ssh", "eventtype": "Failed password", "srcip": "203.0.113.9"},
+      {"source": "ssh", "eventtype": "Failed password", "srcip": "203.0.113.9"},
+      {"source": "ssh", "eventtype": "Failed password", "srcip": "203.0.113.9"},
+      {"source": "ssh", "eventtype": "Failed password", "srcip": "203.0.113.9"},
+      {"source": "ssh", "eventtype": "Failed password", "srcip": "203.0.113.9"}
+    ]
+  }'
+
+curl RENDER_URL_HERE/api/alerts
+# → includes a freshly generated "ssh_bruteforce" alert for 203.0.113.9</code></pre>
+    <p style="color:var(--muted); font-size:0.85rem;">Running on a free-tier host: the first request after ~15 minutes idle can take 30-60 seconds to wake up.</p>
+  </section>
+
+  <section>
+    <h2>Why it's built this way</h2>
+    <p>This project intentionally separates what's implemented from what's planned. The detection engine and threat-intel service are real, tested, and running behind the "Try it live" link above. Elasticsearch/InfluxDB/RabbitMQ/Grafana are part of the target architecture and run locally via Docker Compose, but aren't yet in the live request path — that's the next phase, not a hidden gap.</p>
+  </section>
+
+  <footer>
+    <p>Built by Vu Khanh Luu · <a href="https://github.com/vukhanh732/sentrynode">github.com/vukhanh732/sentrynode</a></p>
+  </footer>
+
+</div>
+</body>
+</html>
