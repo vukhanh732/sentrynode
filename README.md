@@ -1,342 +1,91 @@
 # SentryNode
 
-A lightweight, home-built Security Information and Event Management (SIEM) system for detecting, alerting, and analyzing security threats. SentryNode ingests logs from distributed agents, applies detection rules, correlates threat intelligence, and visualizes security metrics.
+A Python log collector and FastAPI detection API. SSH failures and suspicious HTTP requests become structured alerts that can be investigated through the API.
 
-**Status**: Phase 1 - Core detection and threat intel features, hardened and deployed as a live demo
+[Live API documentation](https://sentrynode-backend.onrender.com/docs) · [Alerts feed](https://sentrynode-backend.onrender.com/api/alerts) · [Portfolio case study](https://security-vu.netlify.app/sentrynode.html)
 
-## Live Demo
+The public Render demo uses sample alerts and in-memory state. It may take time to wake after inactivity. It is a learning project, not a production SIEM.
 
-- **Try it live**: [sentrynode-backend.onrender.com/docs](https://sentrynode-backend.onrender.com/docs) (Swagger UI, fully interactive)
-- **Alerts feed**: [sentrynode-backend.onrender.com/api/alerts](https://sentrynode-backend.onrender.com/api/alerts)
+## Working request path
 
-Running on Render's free tier: if it's been idle for ~15 minutes, the first request takes 30-60 seconds to wake up. Subsequent requests are fast. The demo runs in `DEMOMODE`, seeded with a few sample alerts, and has no persistent database — state resets on redeploy.
+```text
+SSH / nginx log files
+    → Python collector → bounded HTTP batches
+    → FastAPI validation and rate limits
+    → detection rules → in-memory alert feed
 
-## Features
-
-### 🔍 Threat Detection
-- **SSH Brute Force Detection** - Identifies suspicious patterns of failed SSH login attempts from the same source IP within a configurable time window
-- **SQL Injection Detection** - Pattern-based detection of SQL injection attempts in HTTP requests
-
-### 🌐 Threat Intelligence
-- **IP Reputation Checking** - Integrates with AbuseIPDB API to check IP maliciousness scores
-- **Response Caching** - Redis-backed caching with configurable TTL to reduce API calls
-
-### 📊 Log Ingestion & Management
-- **Batch Log Ingestion API** - Accepts structured log events from agents (SSH, nginx, etc.)
-- **Alert Generation** - Automatically generates alerts with severity levels (HIGH, CRITICAL)
-- **Alert Retrieval** - Query generated alerts via REST API
-
-### 🏥 System Health
-- **Health Check Endpoint** - Monitor API and dependency status
-
-## Architecture
-
-**Implemented and running today:**
-
-```
-┌─────────────┐
-│   Agents    │ (SSH logs, nginx logs, etc.)
-└──────┬──────┘
-       │ (HTTP POST /api/logs)
-       ▼
-┌─────────────────────────────────────┐
-│    FastAPI Backend                  │
-│  ┌──────────────────────────────┐   │
-│  │  Detection Engine (in-memory)│   │
-│  │  - SSH Brute Force           │   │
-│  │  - SQL Injection             │   │
-│  │  - Path Traversal            │   │
-│  │  - HTTP Method Scanning      │   │
-│  │  - HTTP Auth Brute Force     │   │
-│  │  - Suspicious Path Access    │   │
-│  └──────────────────────────────┘   │
-│  ┌──────────────────────────────┐   │
-│  │  Threat Intel Service        │   │
-│  │  - AbuseIPDB Integration     │   │
-│  │  - Redis Caching (optional,  │   │
-│  │    degrades gracefully)      │   │
-│  └──────────────────────────────┘   │
-└──────────────┬───────────────────────┘
-               ▼
-            ┌───────┐
-            │ Redis │ (cache only)
-            └───────┘
+IP reputation endpoint → AbuseIPDB → optional Redis cache
 ```
 
-**Provisioned in `docker-compose.yml` for local full-stack development, not yet wired into the request path:** RabbitMQ, InfluxDB, Elasticsearch, Grafana. These represent the intended direction (queued ingestion, long-term log storage, metrics dashboards) but the backend code doesn't call them yet — see the Roadmap section below. Being upfront about this split is deliberate: it's a mid-flight infrastructure project, not a finished platform.
+- Collector parses SSH and nginx log lines and watches configured files.
+- Detection covers SSH brute force, SQL injection, path traversal, HTTP authentication failures, method scanning and suspicious paths.
+- Ingestion accepts at most 500 events per request, with a 20-request/minute client limit. IP reputation lookups are limited to 30/minute.
+- The separate reputation endpoint caches AbuseIPDB responses and handles unavailable upstream services. A missing API key returns an explicitly labelled default, not a verified clean reputation.
 
-## Quick Start
+RabbitMQ, Elasticsearch, InfluxDB and Grafana are provisioned in Compose for experimentation. They are **not connected to the implemented ingestion path**.
 
-### Prerequisites
-- Docker & Docker Compose
-- Git
+## Run the API locally
 
-### Setup (5 minutes)
-
-1. **Clone and configure**
-   ```bash
-   cd sentrynode
-   cp .env.example .env
-   ```
-
-2. **Start all services**
-   ```bash
-   docker compose up -d --build
-   ```
-
-3. **Verify health**
-   ```bash
-   curl http://localhost:8000/health
-   ```
-   Expected: `{"status":"ok","redis":"ok"}` (the `redis` field reports `"unavailable"` if the cache can't be reached, but the endpoint still returns 200)
-
-### Access Services
-
-| Service | URL | Credentials |
-|---------|-----|-------------|
-| **SentryNode API** | http://localhost:8000 | - |
-| **Grafana** | http://localhost:3000 | admin / admin |
-| **RabbitMQ** | http://localhost:15672 | guest / guest |
-| **Elasticsearch** | http://localhost:9200 | - |
-| **InfluxDB** | http://localhost:8086 | admin / password123 |
-
-**📄 API Docs**: http://localhost:8000/docs (auto-generated Swagger UI)
-
-## API Endpoints
-
-### Health Check
-```bash
-GET /health
-```
-Returns API status. `redis` reports `"ok"` or `"unavailable"` depending on whether the cache backend can be reached (the endpoint itself still returns 200 either way):
-```json
-{
-  "status": "ok",
-  "redis": "ok"
-}
-```
-
-### Log Ingestion
-```bash
-POST /api/logs
-Content-Type: application/json
-
-{
-  "agentid": "agent-001",
-  "hostname": "web-server-01",
-  "events": [
-    {
-      "source": "ssh",
-      "eventtype": "Failed password",
-      "srcip": "192.168.1.100",
-      "timestamp": "2024-01-15T10:30:00Z"
-    },
-    {
-      "source": "nginx",
-      "httpmethod": "GET",
-      "httppath": "/api/users' OR '1'='1",
-      "srcip": "10.0.0.50",
-      "timestamp": "2024-01-15T10:31:00Z"
-    }
-  ]
-}
-```
-
-Rate-limited to **20 requests/minute** per client (returns `429` when exceeded). Batches are capped at **500 events** per request (returns `413` if exceeded).
-
-**Response**: 
-```json
-{
-  "status": "accepted",
-  "eventcount": 2
-}
-```
-
-### List Alerts
-```bash
-GET /api/alerts
-```
-
-**Response**:
-```json
-{
-  "alerts": [
-    {
-      "rule": "ssh_bruteforce",
-      "srcip": "192.168.1.100",
-      "failure_count": 5,
-      "window_minutes": 10,
-      "threatlevel": "HIGH",
-      "message": "SSH brute force suspected from 192.168.1.100",
-      "timestamp": "2024-01-15T10:35:00Z"
-    },
-    {
-      "rule": "sql_injection",
-      "srcip": "10.0.0.50",
-      "httpmethod": "GET",
-      "httppath": "/api/users' OR '1'='1",
-      "matched_patterns": ["' or '1'='1"],
-      "threatlevel": "CRITICAL",
-      "message": "Potential SQL injection detected",
-      "timestamp": "2024-01-15T10:31:00Z"
-    }
-  ]
-}
-```
-
-### Threat Intelligence Lookup
-```bash
-GET /api/threat-intel/{ip}
-```
-
-Rate-limited to **30 requests/minute** per client (returns `429` when exceeded). The `{ip}` path parameter is validated as a real IP address; an invalid value returns `400`.
-
-**Response**:
-```json
-{
-  "ip": "192.168.1.100",
-  "abuseConfidenceScore": 75,
-  "totalReports": 12,
-  "isMalicious": true,
-  "source": "abuseipdb",
-  "cached": false,
-  "timestamp": "2024-01-15T10:32:00Z"
-}
-```
-
-## Configuration
-
-Environment variables read by the backend (`backend/app/config.py`, see `.env.example`):
-
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `APPNAME` | SentryNode | Application name (used in logs/metadata) |
-| `ENVIRONMENT` | development | Deployment environment label |
-| `LOGLEVEL` | INFO | Logging verbosity |
-| `JWTSECRET` | change-me | JWT secret for future auth features |
-| `ABUSEIPDBAPIKEY` | change-me | AbuseIPDB API key for IP reputation lookups |
-| `DISCORDWEBHOOKURL` | (unset) | Discord webhook for alert notifications (optional) |
-| `REDISHOST` | localhost | Redis host for threat-intel response caching |
-| `REDISPORT` | 6379 | Redis port |
-| `REDISDB` | 0 | Redis logical database index |
-| `REDISTTLSECONDS` | 3600 | Threat intel cache TTL, in seconds |
-| `DEMOMODE` | false | Enables demo/showcase behavior (e.g. relaxed auth for the public demo deployment) |
-| `CORSORIGINS` | "" (empty) | Comma-separated list of allowed CORS origins |
-
-**docker-compose infra (not read by the backend):** `RABBITMQUSER`/`RABBITMQPASSWORD`, `INFLUXDBUSER`/`INFLUXDBPASSWORD`, `GRAFANAPASSWORD` configure the RabbitMQ, InfluxDB, and Grafana containers in `docker-compose.yml` for local full-stack development. They have no corresponding `Settings` field because the backend doesn't talk to those services yet (see Architecture above and Roadmap below).
-
-## Testing
-
-Run the test suite:
+Python 3.10+:
 
 ```bash
-# Unit tests
-docker compose exec backend pytest tests/unit/
-
-# Integration tests (requires running services)
-docker compose exec backend pytest tests/integration/
-
-# With coverage
-docker compose exec backend pytest --cov=app tests/
+git clone https://github.com/vukhanh732/sentrynode.git
+cd sentrynode
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -r backend/requirements.txt
+cd backend
+DEMOMODE=true uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-## Detection Rules
+Open <http://127.0.0.1:8000/docs>. Redis is optional; `/health` reports its availability. Set `ABUSEIPDBAPIKEY` to enable real reputation lookups. The complete environment template is [`.env.example`](.env.example).
 
-### SSH Brute Force
-- **Trigger**: ≥ 5 failed SSH login attempts from same IP within 10 minutes
-- **Severity**: HIGH
-- **Action**: Alert generated, IP flagged
+Try ingestion against your local instance:
 
-### SQL Injection
-- **Trigger**: HTTP request path contains suspicious SQL patterns
-- **Patterns**: `union select`, `drop table`, `insert into`, `delete from`, `../`, ` or 1=1`, `' or '1'='1`, `%27` (URL-encoded quote)
-- **Severity**: CRITICAL
-- **Action**: Alert generated immediately
-
-Rules are configurable via `DetectionEngine` class initialization.
-
-## Project Structure
-
-```
-sentrynode/
-├── backend/                 # FastAPI application
-│   ├── app/
-│   │   ├── api/
-│   │   │   └── routes/     # REST endpoints
-│   │   │       ├── health.py
-│   │   │       ├── logs.py
-│   │   │       ├── alerts.py
-│   │   │       └── threatintel.py
-│   │   ├── services/       # Business logic
-│   │   │   ├── detector.py      # Detection engine
-│   │   │   └── threatintel.py   # Threat intel service
-│   │   ├── config.py       # Configuration
-│   │   └── main.py         # FastAPI app setup
-│   ├── tests/              # Test suite
-│   │   ├── unit/
-│   │   └── integration/
-│   └── Dockerfile
-├── agent/                   # Log collection agents (future)
-├── docker-compose.yml      # Full stack orchestration
-├── .env.example            # Environment template
-└── README.md
-```
-
-## Technology Stack
-
-- **API Framework**: FastAPI 0.104.1
-- **Async Runtime**: Uvicorn
-- **Data Validation**: Pydantic 2.5
-- **HTTP Client**: HTTPX
-- **Caching**: Redis
-- **Testing**: Pytest + pytest-asyncio
-- **Logging**: python-json-logger
-- **Infrastructure**: Docker Compose
-  - Redis (caching — actively used)
-  - RabbitMQ 3.12, Elasticsearch 8.11, InfluxDB 2.7, Grafana 10.2 — provisioned for local dev, not yet wired into the backend (see Roadmap)
-
-## Development Roadmap (Phase 2+)
-
-- [ ] Agent implementations (log collectors for SSH, nginx, Windows Event Log)
-- [ ] Elasticsearch integration for centralized log storage
-- [ ] InfluxDB metrics pipeline
-- [ ] Grafana dashboard templates
-- [ ] RabbitMQ event streaming
-- [ ] Advanced correlation rules
-- [ ] ML-based anomaly detection
-- [ ] Authentication/authorization
-- [ ] Multi-tenant support
-- [ ] Alert notification channels (email, Slack, PagerDuty)
-
-## Troubleshooting
-
-**API not responding**
 ```bash
-docker compose logs backend
-docker compose ps
+curl -X POST http://127.0.0.1:8000/api/logs \
+  -H 'Content-Type: application/json' \
+  -d '{"agentid":"local-demo","hostname":"web-01","events":[{"source":"nginx","httpmethod":"GET","httppath":"/../../etc/passwd","srcip":"192.0.2.10"}]}'
+curl http://127.0.0.1:8000/api/alerts
 ```
 
-**Redis cache not working**
-- Verify Redis container is running: `docker compose ps`
-- Check backend logs for Redis connection errors
+For the full experimental stack, copy `.env.example` to `.env` and run `docker compose up -d --build`. Review local container credentials before exposing any services.
 
-**AbuseIPDB lookups returning zeros**
-- API key not configured: Set valid `ABUSEIPDBAPIKEY` in `.env`
-- Rate limit hit: Responses are cached for 1 hour by default
-- Network issue: Check backend container can reach api.abuseipdb.com
+## Collector and delivery behavior
 
-## Contributing
+From the repository root, with the virtual environment active:
 
-This is a portfolio/learning project. Contributions welcome! Please:
-1. Fork and create a feature branch
-2. Add tests for new features
-3. Ensure all tests pass
-4. Submit a pull request
+```bash
+pip install -r agent/requirements.txt
+cd agent
+BACKEND_URL=http://127.0.0.1:8000 python -m collector.main
+```
 
-## License
+The default watch paths are `/var/log/auth.log` and `/var/log/nginx/access.log`; configure them in [`AgentConfig`](agent/collector/config.py) for your host. The process needs read access to those files.
 
-See LICENSE file for details.
+The shipper now retries the **same payload**, rather than waiting and discarding it after the first failed request:
 
----
+| Condition | Delivery behavior |
+| --- | --- |
+| Transport error, HTTP 408 / 429 / 5xx | Initial attempt plus at most five retries |
+| Retry delay | 1, 2, 4, 8, 16 seconds; numeric `Retry-After` is capped at 30 seconds |
+| Other HTTP errors | Fail immediately |
+| More than 500 events | Send sequential chunks, stopping if a chunk fails |
+| Task cancellation | Propagate cancellation |
 
-**Built with**: FastAPI, RabbitMQ, Elasticsearch, InfluxDB, Grafana | **Status**: Active Development
+There is no durable queue or disk spool. Exhausted batches can be lost, and an ambiguous timeout can lead to duplicates when retried. Earlier chunks may already have been accepted when a later chunk fails. The `X-Agent-Token` header is sent by the collector, but the current API does not enforce agent authentication.
+
+## Verify
+
+From the repository root with backend dependencies installed:
+
+```bash
+(cd backend && python -m pytest tests/unit -q)
+(cd agent && python -m pytest tests -q)
+```
+
+Tests cover detection, API validation/rate limits, reputation/cache failure handling, parsing/file watching, retry exhaustion, permanent errors, payload chunking and cancellation. HTTP delivery tests use mocked transports; they do not send events to the public demo. Integration tests under `backend/tests/integration` additionally require running services.
+
+## Scope and next work
+
+Alerts and detection windows live in process memory and reset on restart. Durable ingestion, authenticated agents and persistent alert storage remain future work. Current evidence demonstrates the API and collector behavior, not production scale or detection effectiveness against all attacks.

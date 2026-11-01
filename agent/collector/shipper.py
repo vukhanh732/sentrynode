@@ -1,102 +1,72 @@
-"""Log shipper module for sending logs to backend."""
+"""Bounded HTTP delivery retries for a single in-memory event batch."""
 import asyncio
-import json
 import logging
-from datetime import datetime
+import math
+from datetime import datetime, timezone
 from typing import List, Optional
-
 import httpx
 from .config import AgentConfig
 
-
 class LogShipper:
-    """Ships logs to the backend with retry logic."""
-    
+    MAX_BATCH_EVENTS = 500
     def __init__(self, config: AgentConfig):
-        """
-        Initialize log shipper.
-        
-        Args:
-            config: AgentConfig instance
-        """
         self.config = config
         self.logger = logging.getLogger(__name__)
         self.http_client: Optional[httpx.AsyncClient] = None
-        
-        self.retry_count = 0
         self.max_retries = 5
         self.backoff_base = 2
-    
-    async def connect(self) -> None:
-        """Initialize HTTP client."""
-        try:
-            self.http_client = httpx.AsyncClient(
-                timeout=30.0,
-                limits=httpx.Limits(max_connections=5),
-            )
-            self.logger.info(f"Shipper ready for {self.config.backend_url}")
-            self.retry_count = 0
-        except Exception as e:
-            self.logger.error(f"Failed to initialize shipper: {e}")
-            raise
-    
+        self.retry_count = 0
+
+    async def connect(self):
+        self.http_client = httpx.AsyncClient(timeout=30.0, limits=httpx.Limits(max_connections=5))
+        self.logger.info('Shipper ready for %s', self.config.backend_url)
+
+    def _delay(self, attempt, response=None):
+        if response is not None:
+            try:
+                delay = float(response.headers.get('Retry-After', ''))
+                if math.isfinite(delay) and delay >= 0:
+                    return min(delay, 30.0)
+            except ValueError:
+                pass
+        return min(self.backoff_base ** attempt, 30.0)
+
     async def send_events(self, events: List[dict]) -> bool:
-        """
-        Send events to backend.
-        
-        Args:
-            events: List of log event dicts
-            
-        Returns:
-            True if successful, False otherwise
-        """
         if not events:
             return True
-        
-        try:
-            payload = {
-                "agentid": self.config.agent_id,
-                "hostname": self.config.hostname,
-                "timestamp": datetime.utcnow().isoformat(),
-                "events": events,
-            }
-            
-            response = await self.http_client.post(
-                f"{self.config.backend_url}/api/logs",
-                json=payload,
-                headers={
-                    "User-Agent": f"SentryNode-Agent/{self.config.agent_version}",
-                    "X-Agent-Token": self.config.agent_token,
-                },
-            )
-            
-            response.raise_for_status()
-            self.logger.info(f"Sent {len(events)} events")
+        if self.http_client is None:
+            raise RuntimeError('Call connect() before sending events')
+        for offset in range(0, len(events), self.MAX_BATCH_EVENTS):
+            batch = events[offset:offset + self.MAX_BATCH_EVENTS]
+            payload = {'agentid': self.config.agent_id, 'hostname': self.config.hostname,
+                       'timestamp': datetime.now(timezone.utc).isoformat(), 'events': batch}
+            delivered = False
+            for attempt in range(self.max_retries + 1):
+                self.retry_count = attempt
+                response = None
+                try:
+                    response = await self.http_client.post(
+                        self.config.backend_url.rstrip('/') + '/api/logs', json=payload,
+                        headers={'User-Agent': f'SentryNode-Agent/{self.config.agent_version}',
+                                 'X-Agent-Token': self.config.agent_token})
+                    response.raise_for_status()
+                    delivered = True
+                    break
+                except httpx.HTTPStatusError:
+                    if response.status_code not in (408, 429) and response.status_code < 500:
+                        self.logger.error('Non-retryable ingestion status %s', response.status_code)
+                        break
+                except httpx.TransportError:
+                    self.logger.warning('Transport failure shipping batch; attempt %s', attempt + 1)
+                if attempt < self.max_retries:
+                    await asyncio.sleep(self._delay(attempt, response))
             self.retry_count = 0
-            return True
-        
-        except httpx.HTTPError as e:
-            self.logger.error(f"HTTP error sending events: {e}")
-            return await self._handle_error()
-        except Exception as e:
-            self.logger.error(f"Error sending events: {e}")
-            return await self._handle_error()
-    
-    async def _handle_error(self) -> bool:
-        """Handle send failure with exponential backoff."""
-        if self.retry_count < self.max_retries:
-            wait_time = self.backoff_base ** self.retry_count
-            self.logger.warning(f"Retry in {wait_time}s (attempt {self.retry_count + 1}/{self.max_retries})")
-            await asyncio.sleep(wait_time)
-            self.retry_count += 1
-            return False
-        else:
-            self.logger.error("Max retries exceeded. Events may be lost.")
-            self.retry_count = 0
-            return False
-    
-    async def disconnect(self) -> None:
-        """Clean up HTTP client."""
+            if not delivered:
+                self.logger.error('Batch delivery failed; no durable queue is configured')
+                return False
+        return True
+
+    async def disconnect(self):
         if self.http_client:
             await self.http_client.aclose()
-            self.logger.info("Shipper disconnected")
+            self.http_client = None
