@@ -4,7 +4,7 @@ A Python log collector and FastAPI detection API. SSH failures and suspicious HT
 
 [Live API documentation](https://sentrynode-backend.onrender.com/docs) · [Alerts feed](https://sentrynode-backend.onrender.com/api/alerts) · [Portfolio case study](https://security-vu.netlify.app/sentrynode.html)
 
-The public Render demo uses sample alerts. It may take time to wake after inactivity. Ingestion requires the deployment's `AGENT_TOKEN`. SQLite alert history persists across process restarts when its file is retained; Render's free filesystem is temporary, so the demo may lose history on restart or redeploy. This is a learning project, not a production SIEM.
+The public demo shows sample alerts and may take time to wake up. To send your own events, run the API locally with an agent token. The Render demo uses temporary storage.
 
 ## Working request path
 
@@ -17,12 +17,11 @@ SSH / nginx log files
 IP reputation endpoint → AbuseIPDB → optional Redis cache
 ```
 
-- Collector parses SSH and nginx log lines and watches configured files.
-- Detection covers SSH brute force, SQL injection, path traversal, HTTP authentication failures, method scanning and suspicious paths.
-- Ingestion accepts at most 500 events per request, with a 20-request/minute client limit. IP reputation lookups are limited to 30/minute.
-- The separate reputation endpoint caches AbuseIPDB responses and handles unavailable upstream services. A missing API key returns an explicitly labelled default, not a verified clean reputation.
+- The collector watches SSH and nginx logs and sends batches of up to 500 events.
+- Rules detect SSH brute force and suspicious HTTP requests.
+- A separate IP reputation endpoint uses AbuseIPDB and an optional Redis cache.
 
-The request path uses SQLite for alert history and optional Redis for threat-intel caching. The current Compose setup starts the backend and Redis with named volumes; RabbitMQ, Elasticsearch, InfluxDB and Grafana are not connected to the request path.
+The Compose setup starts the API and Redis. RabbitMQ, Elasticsearch, InfluxDB and Grafana are not connected to the request path.
 
 ## Run the API locally
 
@@ -40,7 +39,7 @@ export ALERT_DB_PATH=data/alerts.sqlite3
 DEMOMODE=true uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-Open <http://127.0.0.1:8000/docs>. Redis is optional; `/health` reports its availability. Set `ABUSEIPDBAPIKEY` to enable real reputation lookups. The complete environment template is [`.env.example`](.env.example). `AGENT_TOKEN` must be set or ingestion returns `503`.
+Open <http://127.0.0.1:8000/docs>. Redis is optional. Set `ABUSEIPDBAPIKEY` for real reputation lookups; without it, the API labels results as unverified. See [`.env.example`](.env.example) for settings.
 
 Try ingestion against your local instance:
 
@@ -66,7 +65,7 @@ BACKEND_URL=http://127.0.0.1:8000 python -m collector.main
 
 The default watch paths are `/var/log/auth.log` and `/var/log/nginx/access.log`; configure them in [`AgentConfig`](agent/collector/config.py) for your host. The process needs read access to those files.
 
-The shipper now retries the **same payload**, rather than waiting and discarding it after the first failed request:
+The shipper retries the same payload after temporary failures:
 
 | Condition | Delivery behavior |
 | --- | --- |
@@ -76,7 +75,7 @@ The shipper now retries the **same payload**, rather than waiting and discarding
 | More than 500 events | Send sequential chunks, stopping if a chunk fails |
 | Task cancellation | Propagate cancellation |
 
-There is no durable queue or disk spool. Exhausted batches can be lost, and an ambiguous timeout can lead to duplicates when retried. Earlier chunks may already have been accepted when a later chunk fails. The API requires the same `AGENT_TOKEN` as the collector and rejects missing or invalid tokens.
+There is no disk spool. Batches can be lost after retries or duplicated after an ambiguous timeout. The API rejects missing or invalid agent tokens.
 
 ## Verify
 
@@ -87,8 +86,8 @@ From the repository root with backend dependencies installed:
 (cd agent && python -m pytest tests -q)
 ```
 
-Tests cover detection, API validation/rate limits, reputation/cache failure handling, parsing/file watching, retry exhaustion, permanent errors, payload chunking and cancellation. HTTP delivery tests use mocked transports; they do not send events to the public demo. Integration tests under `backend/tests/integration` additionally require running services.
+Tests cover detection, authentication, alert persistence, reputation failures, collector parsing and delivery retries. HTTP delivery tests use mocked transports. Integration tests under `backend/tests/integration` require running services.
 
 ## Scope and next work
 
-Detection windows live in process memory and reset on restart; alert history is stored in SQLite. Current evidence demonstrates the API and collector behavior, not production scale or detection effectiveness against all attacks.
+Alert history is stored in SQLite. Detection windows reset on restart. This project has not been tested at production scale.
