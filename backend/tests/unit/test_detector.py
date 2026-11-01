@@ -11,7 +11,7 @@ def test_ssh_bruteforce_creates_alert():
             "hostname": "webserver",
             "events": [{"source": "ssh", "eventtype": "Failed password", "srcip": ip, "user": "root"}],
         }
-        r = client.post("/api/logs", json=payload)
+        r = client.post("/api/logs", json=payload, headers={"X-Agent-Token": "test-agent-token"})
         assert r.status_code == 200
 
     alerts = client.get("/api/alerts").json()["alerts"]

@@ -4,7 +4,7 @@ A Python log collector and FastAPI detection API. SSH failures and suspicious HT
 
 [Live API documentation](https://sentrynode-backend.onrender.com/docs) · [Alerts feed](https://sentrynode-backend.onrender.com/api/alerts) · [Portfolio case study](https://security-vu.netlify.app/sentrynode.html)
 
-The public Render demo uses sample alerts and in-memory state. It may take time to wake after inactivity. It is a learning project, not a production SIEM.
+The public Render demo uses sample alerts. It may take time to wake after inactivity. Ingestion requires the deployment's `AGENT_TOKEN`. SQLite alert history persists across process restarts when its file is retained; Render's free filesystem is temporary, so the demo may lose history on restart or redeploy. This is a learning project, not a production SIEM.
 
 ## Working request path
 
@@ -12,7 +12,7 @@ The public Render demo uses sample alerts and in-memory state. It may take time 
 SSH / nginx log files
     → Python collector → bounded HTTP batches
     → FastAPI validation and rate limits
-    → detection rules → in-memory alert feed
+    → detection rules → SQLite alert history
 
 IP reputation endpoint → AbuseIPDB → optional Redis cache
 ```
@@ -22,7 +22,7 @@ IP reputation endpoint → AbuseIPDB → optional Redis cache
 - Ingestion accepts at most 500 events per request, with a 20-request/minute client limit. IP reputation lookups are limited to 30/minute.
 - The separate reputation endpoint caches AbuseIPDB responses and handles unavailable upstream services. A missing API key returns an explicitly labelled default, not a verified clean reputation.
 
-RabbitMQ, Elasticsearch, InfluxDB and Grafana are provisioned in Compose for experimentation. They are **not connected to the implemented ingestion path**.
+The request path uses SQLite for alert history and optional Redis for threat-intel caching. The current Compose setup starts the backend and Redis with named volumes; RabbitMQ, Elasticsearch, InfluxDB and Grafana are not connected to the request path.
 
 ## Run the API locally
 
@@ -35,21 +35,24 @@ python3 -m venv .venv
 . .venv/bin/activate
 pip install -r backend/requirements.txt
 cd backend
+export AGENT_TOKEN='replace-with-a-private-random-secret'
+export ALERT_DB_PATH=data/alerts.sqlite3
 DEMOMODE=true uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-Open <http://127.0.0.1:8000/docs>. Redis is optional; `/health` reports its availability. Set `ABUSEIPDBAPIKEY` to enable real reputation lookups. The complete environment template is [`.env.example`](.env.example).
+Open <http://127.0.0.1:8000/docs>. Redis is optional; `/health` reports its availability. Set `ABUSEIPDBAPIKEY` to enable real reputation lookups. The complete environment template is [`.env.example`](.env.example). `AGENT_TOKEN` must be set or ingestion returns `503`.
 
 Try ingestion against your local instance:
 
 ```bash
 curl -X POST http://127.0.0.1:8000/api/logs \
   -H 'Content-Type: application/json' \
+  -H "X-Agent-Token: $AGENT_TOKEN" \
   -d '{"agentid":"local-demo","hostname":"web-01","events":[{"source":"nginx","httpmethod":"GET","httppath":"/../../etc/passwd","srcip":"192.0.2.10"}]}'
 curl http://127.0.0.1:8000/api/alerts
 ```
 
-For the full experimental stack, copy `.env.example` to `.env` and run `docker compose up -d --build`. Review local container credentials before exposing any services.
+For the local Docker demo, copy `.env.example` to `.env`, set a private `AGENT_TOKEN`, and run `docker compose up -d --build`. The named SQLite volume keeps alert history across container restarts; `docker compose down -v` removes it.
 
 ## Collector and delivery behavior
 
@@ -73,7 +76,7 @@ The shipper now retries the **same payload**, rather than waiting and discarding
 | More than 500 events | Send sequential chunks, stopping if a chunk fails |
 | Task cancellation | Propagate cancellation |
 
-There is no durable queue or disk spool. Exhausted batches can be lost, and an ambiguous timeout can lead to duplicates when retried. Earlier chunks may already have been accepted when a later chunk fails. The `X-Agent-Token` header is sent by the collector, but the current API does not enforce agent authentication.
+There is no durable queue or disk spool. Exhausted batches can be lost, and an ambiguous timeout can lead to duplicates when retried. Earlier chunks may already have been accepted when a later chunk fails. The API requires the same `AGENT_TOKEN` as the collector and rejects missing or invalid tokens.
 
 ## Verify
 
@@ -88,4 +91,4 @@ Tests cover detection, API validation/rate limits, reputation/cache failure hand
 
 ## Scope and next work
 
-Alerts and detection windows live in process memory and reset on restart. Durable ingestion, authenticated agents and persistent alert storage remain future work. Current evidence demonstrates the API and collector behavior, not production scale or detection effectiveness against all attacks.
+Detection windows live in process memory and reset on restart; alert history is stored in SQLite. Current evidence demonstrates the API and collector behavior, not production scale or detection effectiveness against all attacks.

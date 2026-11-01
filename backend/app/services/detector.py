@@ -2,6 +2,7 @@ from collections import defaultdict, deque
 from datetime import datetime, timedelta
 from typing import Any, Deque, Dict, List, Tuple, Optional
 from urllib.parse import unquote_plus
+from app.services.alert_store import AlertStore
 
 
 class DetectionEngine:
@@ -58,6 +59,7 @@ class DetectionEngine:
         ssh_threshold: int = 5,
         window_minutes: int = 10,
         http_failure_threshold: int = 20,
+        alert_store: Optional[AlertStore] = None,
     ) -> None:
         """
         Initialize detection engine.
@@ -75,6 +77,13 @@ class DetectionEngine:
         self._failed_ssh_by_ip: Dict[str, Deque[datetime]] = defaultdict(deque)
         self._http_failures_by_ip: Dict[str, Deque[datetime]] = defaultdict(deque)
         self._alerts: List[Dict[str, Any]] = []
+        self._alert_store = alert_store
+
+    def _record_alert(self, alert: Dict[str, Any]) -> None:
+        if self._alert_store is not None:
+            self._alert_store.add(alert)
+        else:
+            self._alerts.append(alert)
 
     def process_events(self, events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
@@ -132,7 +141,7 @@ class DetectionEngine:
                 "message": f"SSH brute force: {len(dq)} failed attempts from {ip} in {self.window.total_seconds() // 60}m",
                 "timestamp": now.isoformat() + "Z",
             }
-            self._alerts.append(alert)
+            self._record_alert(alert)
             dq.clear()  # Reset after alert
             return [alert]
 
@@ -164,7 +173,7 @@ class DetectionEngine:
             "message": f"SQL injection: {len(matched)} patterns matched in {path[:50]}",
             "timestamp": now.isoformat() + "Z",
         }
-        self._alerts.append(alert)
+        self._record_alert(alert)
         return [alert]
 
     def detect_path_traversal(self, e: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -193,7 +202,7 @@ class DetectionEngine:
             "message": f"Path traversal: directory traversal attempts detected",
             "timestamp": now.isoformat() + "Z",
         }
-        self._alerts.append(alert)
+        self._record_alert(alert)
         return [alert]
 
     def detect_http_method_scanning(self, e: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -219,7 +228,7 @@ class DetectionEngine:
                 "message": f"HTTP method scanning: {method} {path}",
                 "timestamp": now.isoformat() + "Z",
             }
-            self._alerts.append(alert)
+            self._record_alert(alert)
             return [alert]
 
         return []
@@ -258,7 +267,7 @@ class DetectionEngine:
                 "message": f"HTTP auth brute force: {len(dq)} failures from {ip}",
                 "timestamp": now.isoformat() + "Z",
             }
-            self._alerts.append(alert)
+            self._record_alert(alert)
             dq.clear()
             return [alert]
 
@@ -304,28 +313,30 @@ class DetectionEngine:
             "message": f"Suspicious path access: {path[:50]} (status {status})",
             "timestamp": now.isoformat() + "Z",
         }
-        self._alerts.append(alert)
+        self._record_alert(alert)
         return [alert]
 
     def list_alerts(self) -> List[Dict[str, Any]]:
         """Return all accumulated alerts."""
-        return list(self._alerts)
+        return self._alert_store.list() if self._alert_store is not None else list(self._alerts)
 
     def get_alerts_by_severity(self, threat_level: str) -> List[Dict[str, Any]]:
         """Get alerts filtered by threat level."""
-        return [a for a in self._alerts if a.get("threat_level", "").upper() == threat_level.upper()]
+        return [a for a in self.list_alerts() if a.get("threat_level", "").upper() == threat_level.upper()]
 
     def get_alerts_by_ip(self, ip: str) -> List[Dict[str, Any]]:
         """Get alerts for specific IP address."""
-        return [a for a in self._alerts if a.get("srcip") == ip]
+        return [a for a in self.list_alerts() if a.get("srcip") == ip]
 
     def clear_alerts(self) -> None:
         """Clear all stored alerts."""
         self._alerts.clear()
+        if self._alert_store is not None:
+            self._alert_store.clear()
 
     def add_alert(self, alert: Dict[str, Any]) -> None:
         """Append a pre-built alert (used for demo-data seeding)."""
-        self._alerts.append(alert)
+        self._record_alert(alert)
 
     def get_threat_score_for_ip(self, ip: str) -> int:
         """Calculate cumulative threat score for an IP."""

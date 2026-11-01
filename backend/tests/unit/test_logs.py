@@ -8,7 +8,7 @@ def test_ingest_logs_counts_events():
         "hostname": "webserver-01",
         "events": [{"source":"ssh","eventtype":"Failed password","srcip":"1.2.3.4"}],
     }
-    r = client.post("/api/logs", json=payload)
+    r = client.post("/api/logs", json=payload, headers={"X-Agent-Token": "test-agent-token"})
     assert r.status_code == 200
     assert r.json()["status"] == "accepted"
     assert r.json()["eventcount"] == 1

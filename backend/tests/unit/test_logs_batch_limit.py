@@ -10,7 +10,7 @@ def test_logs_rejects_oversized_batch():
         "hostname": "webserver",
         "events": [{"source": "nginx", "httpstatus": 200}] * 501,
     }
-    r = client.post("/api/logs", json=payload)
+    r = client.post("/api/logs", json=payload, headers={"X-Agent-Token": "test-agent-token"})
     assert r.status_code == 413
 
 
@@ -21,5 +21,5 @@ def test_logs_accepts_batch_at_limit():
         "hostname": "webserver",
         "events": [{"source": "nginx", "httpstatus": 200}] * 500,
     }
-    r = client.post("/api/logs", json=payload)
+    r = client.post("/api/logs", json=payload, headers={"X-Agent-Token": "test-agent-token"})
     assert r.status_code == 200

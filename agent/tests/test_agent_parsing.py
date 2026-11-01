@@ -11,6 +11,14 @@ def agent():
     return LogCollectorAgent(config)
 
 
+def test_agent_token_is_explicitly_configured(monkeypatch):
+    monkeypatch.delenv("AGENT_TOKEN", raising=False)
+    assert AgentConfig().agent_token == ""
+
+    monkeypatch.setenv("AGENT_TOKEN", "local-demo-token")
+    assert AgentConfig().agent_token == "local-demo-token"
+
+
 def test_parse_ssh_log_failed_password(agent):
     """Test SSH log parsing for failed passwords."""
     line = "Jan 15 10:22:33 server sshd[1234]: Failed password for user root from 192.168.1.100"

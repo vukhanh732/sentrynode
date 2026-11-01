@@ -11,6 +11,10 @@ services:
         value: "8000"
       - key: DEMOMODE
         value: "true"
+      - key: AGENT_TOKEN
+        sync: false
+      - key: ALERT_DB_PATH
+        value: /tmp/alerts.sqlite3
       - key: CORSORIGINS
         value: ""
       - key: ABUSEIPDBAPIKEY

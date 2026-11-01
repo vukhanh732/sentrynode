@@ -12,5 +12,9 @@ def base_url():
 
 @pytest.fixture(scope="session")
 def client(base_url):
-    with httpx.Client(base_url=base_url, timeout=5.0) as c:
+    with httpx.Client(
+        base_url=base_url,
+        timeout=5.0,
+        headers={"X-Agent-Token": os.getenv("AGENT_TOKEN", "")},
+    ) as c:
         yield c

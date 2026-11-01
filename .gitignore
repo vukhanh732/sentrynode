@@ -9,5 +9,7 @@ htmlcov/
 dist/
 build/
 *.log
+backend/data/
+/data/
 .vscode/
 .idea/

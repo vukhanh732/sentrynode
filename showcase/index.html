@@ -96,6 +96,7 @@
     <p>Post a batch of log events and watch an alert come back:</p>
     <pre><code>curl -X POST https://sentrynode-backend.onrender.com/api/logs \
   -H "Content-Type: application/json" \
+  -H "X-Agent-Token: $AGENT_TOKEN" \
   -d '{
     "agentid": "demo-agent",
     "hostname": "web-01",
@@ -110,6 +111,7 @@
 
 curl https://sentrynode-backend.onrender.com/api/alerts
 # → includes a freshly generated "ssh_bruteforce" alert for 203.0.113.9</code></pre>
+    <p style="color:var(--muted); font-size:0.85rem;">Set <code>AGENT_TOKEN</code> in your shell to the deployment's configured ingestion token before running the POST example.</p>
     <p style="color:var(--muted); font-size:0.85rem;">Running on a free-tier host: the first request after ~15 minutes idle can take 30-60 seconds to wake up.</p>
   </section>
 

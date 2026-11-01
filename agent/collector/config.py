@@ -14,7 +14,8 @@ class AgentConfig(BaseSettings):
     
     # Backend connectivity
     backend_url: str = os.getenv("BACKEND_URL", "http://localhost:8000")
-    agent_token: str = os.getenv("AGENT_TOKEN", "change-me")
+    # Empty by default: configure the shared secret explicitly on both sides.
+    agent_token: str = os.getenv("AGENT_TOKEN", "")
     
     # RabbitMQ
     rabbitmq_url: str = os.getenv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")

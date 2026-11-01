@@ -34,5 +34,5 @@ app.include_router(threatintel_router, prefix="/api")
 
 @app.on_event("startup")
 async def _seed_demo_data() -> None:
-    if get_settings().demomode:
+    if get_settings().demomode and not engine.list_alerts():
         seed_demo_alerts(engine)

@@ -19,6 +19,8 @@ class Settings(BaseSettings):
 
     demomode: bool = False
     corsorigins: str = ""
+    agent_token: str = ""
+    alert_db_path: str = "data/alerts.sqlite3"
 
     class Config:
         env_file = ".env"

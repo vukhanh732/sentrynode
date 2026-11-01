@@ -16,7 +16,7 @@ def test_sqli_creates_alert():
         }],
     }
 
-    r = client.post("/api/logs", json=payload)
+    r = client.post("/api/logs", json=payload, headers={"X-Agent-Token": "test-agent-token"})
     assert r.status_code == 200
 
     alerts = client.get("/api/alerts").json()["alerts"]
