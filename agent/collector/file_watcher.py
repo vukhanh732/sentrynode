@@ -2,6 +2,7 @@
 import asyncio
 import logging
 from pathlib import Path
+import time
 from typing import Callable, Dict, List, Optional
 
 
@@ -34,7 +35,7 @@ class FileWatcher:
         
         self.file_handles: Dict[str, tuple] = {}  # path -> (handle, last_position)
         self.buffers: Dict[str, List[str]] = {path: [] for path in watch_paths}
-        self.last_flush: Dict[str, float] = {path: asyncio.get_event_loop().time() for path in watch_paths}
+        self.last_flush: Dict[str, float] = {path: time.monotonic() for path in watch_paths}
         self._running = False
     
     async def start(self) -> None:
@@ -69,7 +70,7 @@ class FileWatcher:
     
     async def _poll_files(self) -> None:
         """Check each file for new lines."""
-        current_time = asyncio.get_event_loop().time()
+        current_time = time.monotonic()
         
         for path in self.watch_paths:
             try:
@@ -118,7 +119,7 @@ class FileWatcher:
         if self.buffers[path]:
             lines = self.buffers[path][:]
             self.buffers[path] = []
-            self.last_flush[path] = asyncio.get_event_loop().time()
+            self.last_flush[path] = time.monotonic()
             
             try:
                 await self.on_new_lines(path, lines)
